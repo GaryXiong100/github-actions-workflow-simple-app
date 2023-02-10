@@ -4,8 +4,10 @@ on:
   push:
     branches: ['master']
   workflow_dispatch:
- 
-jobs:
+  
+permissions:
+  contents: read
+jobs: 
   buildImage:
     runs-on: ubuntu-latest
     steps:
@@ -33,6 +35,44 @@ jobs:
           file: ./Dockerfile
       
   deployToAKS:
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    
     runs-on: ubuntu-latest
+    environment: Production
     steps:
       - run: echo "hello"
+      - name: OIDC Login to Azure Public Cloud with AzPowershell (enableAzPSSession true)
+        uses: azure/login@v1
+        with:
+          client-id: '0b26cf32-3e44-417b-af4e-601b8a1c8f60'
+          tenant-id: '54d68e1f-72b7-40bb-b956-b3987b7e1a00'
+          subscription-id: '32752f86-fef7-44b9-9555-4e84be422664'
+          enable-AzPSSession: true
+      - name: Setup kubelogin
+        uses: Azure/use-kubelogin@v1
+      - name: Azure Kubernetes set context
+        uses: Azure/aks-set-context@v3
+        with:
+          # Resource Group Name
+          resource-group: 'Github-action'
+          # AKS Cluster Name
+          cluster-name: 'github-actions'
+          # AKS Cluster Subscription
+          subscription: '32752f86-fef7-44b9-9555-4e84be422664'
+          # Get cluster admin credentials. Values: true or false
+          admin: false
+          # Enables kubelogin for non-admin user scenario. Values: true or false
+          use-kubelogin: 'true'
+      - name: Deploys application
+        uses: Azure/8s-deploy@v4
+        with:
+          action: deploy
+          manifests: |
+            hello-world-deployment.yaml
+            hello-world-service.yaml
+          images: |
+            gary002.azurecr.io/hello-world-app:${{github.sha}}
+          
